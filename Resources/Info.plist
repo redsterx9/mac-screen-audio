@@ -3,9 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>com.rheegeon.screend</string>
+    <string>io.github.redsterx9.screend</string>
     <key>CFBundleName</key>
     <string>screend</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>screend captures your Mac's audio so it can be included in screen recordings.</string>
     <key>NSMicrophoneUsageDescription</key>

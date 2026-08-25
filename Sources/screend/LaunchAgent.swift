@@ -1,4 +1,5 @@
 import Foundation
+import ScreendCore
 
 /// Registers screend as a login agent. Needed because a Core Audio process tap only lives as
 /// long as the process that created it — the virtual device disappears the moment screend
@@ -40,14 +41,26 @@ enum LaunchAgent {
                                                       format: .xml, options: 0)
         try data.write(to: plistURL)
 
-        _ = try? launchctl(["bootout", "gui/\(getuid())/\(kAgentLabel)"])
+        for label in [kAgentLabel] + Self.legacyLabels {
+            _ = try? launchctl(["bootout", "gui/\(getuid())/\(label)"])
+        }
         try launchctl(["bootstrap", "gui/\(getuid())", plistURL.path])
         return plistURL.path
     }
 
+    /// Labels this agent has shipped under. Older installs are cleaned up too, otherwise a
+    /// stale agent keeps running an old binary and fights the current one over the device.
+    static let legacyLabels = ["com.rheegeon.screend"]
+
     static func uninstall() throws {
-        _ = try? launchctl(["bootout", "gui/\(getuid())/\(kAgentLabel)"])
-        if isInstalled { try FileManager.default.removeItem(at: plistURL) }
+        for label in [kAgentLabel] + legacyLabels {
+            _ = try? launchctl(["bootout", "gui/\(getuid())/\(label)"])
+            let url = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+            if FileManager.default.fileExists(atPath: url.path) {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     @discardableResult

@@ -1,5 +1,6 @@
 import Foundation
 import CoreAudio
+import ScreendCore
 import AudioToolbox
 
 /// Thin wrappers over the AudioObject property API. Nothing here mutates state —
@@ -140,16 +141,4 @@ enum CA {
             """
         }
     }
-}
-
-func osStatusMessage(_ status: OSStatus) -> String {
-    let chars = [
-        UInt8((UInt32(bitPattern: status) >> 24) & 0xff),
-        UInt8((UInt32(bitPattern: status) >> 16) & 0xff),
-        UInt8((UInt32(bitPattern: status) >> 8) & 0xff),
-        UInt8(UInt32(bitPattern: status) & 0xff),
-    ]
-    let printable = chars.allSatisfy { $0 >= 0x20 && $0 < 0x7f }
-    let fourCC = printable ? " '\(String(decoding: chars, as: UTF8.self))'" : ""
-    return "\(status)\(fourCC)"
 }

@@ -1,5 +1,6 @@
 import Foundation
 import CoreAudio
+import ScreendCore
 import AudioToolbox
 
 /// Per-channel peak meter driven straight off the device's HAL IOProc.

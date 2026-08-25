@@ -1,5 +1,6 @@
 import Foundation
 import CoreAudio
+import ScreendCore
 import AudioToolbox
 
 enum ScreendError: Error, CustomStringConvertible {

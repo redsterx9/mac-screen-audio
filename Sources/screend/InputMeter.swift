@@ -1,5 +1,6 @@
 import Foundation
 import AudioToolbox
+import ScreendCore
 
 /// Reads a device's input and reports peak level. Used by `screend check` to prove the
 /// virtual device is actually carrying the Mac's audio before you rely on it for a take.
@@ -88,8 +89,4 @@ final class InputMeter {
         if normalized > peakValue { peakValue = normalized }
         lock.unlock()
     }
-}
-
-func dbString(_ linear: Float) -> String {
-    linear <= 0.00001 ? "-∞ dB" : String(format: "%.1f dB", 20 * log10(linear))
 }

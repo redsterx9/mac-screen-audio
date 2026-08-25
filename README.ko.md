@@ -72,6 +72,7 @@ L/R 이 분리된 채로 유지된다. 왼쪽 1kHz / 오른쪽 3kHz 를 재생�
 | `screend monitor` | 실시간 L/R 레벨 미터 |
 | `screend list` | 입력 장치와 UID 목록 |
 | `screend install` / `uninstall` | 로그인 에이전트 등록 / 해제 |
+| `screend version` | 버전 출력 |
 | `screend tone` | 진단용 테스트 톤 (`--device` `--left` `--right` `--amp`) |
 
 ## 마이크를 같이 넣기
@@ -109,6 +110,9 @@ L/R 이 분리된 채로 유지된다. 왼쪽 1kHz / 오른쪽 3kHz 를 재생�
   톤이 −16.5dB 로 잡힘.
 - **`screencapture -G` 가 지정 장치를 실제로 씀.** 없는 UID 는 에러, 아무것도 안 꽂힌
   인터페이스는 −71dB 무음.
+- **44.1kHz 소스도 음정이 안 틀어짐.** 집계 장치 클럭이 48kHz라 44.1kHz 소스는 SRC 를 탄다.
+  44.1kHz 1kHz 톤이 정확히 1kHz 로, 48kHz 소스와 같은 레벨로 녹음됨. 변환이 잘못됐다면
+  나왔을 918Hz 에는 아무것도 없음.
 - **설정 무변동**: 세션 전/중/후 기본 장치 모두 그대로.
 - 최종 녹화 파일: `2 ch, 48000 Hz, Stereo (L R)`, 클리핑 0 샘플.
 

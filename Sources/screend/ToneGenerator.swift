@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import ScreendCore
 import CoreAudio
 
 /// Plays a test tone out of a chosen output device, optionally to one channel only.

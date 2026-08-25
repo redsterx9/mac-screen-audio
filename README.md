@@ -78,6 +78,7 @@ channel separation**. Output is `2 ch, 48000 Hz, Stereo (L R)`.
 | `screend monitor` | Live L/R level meter |
 | `screend list` | List input devices and their UIDs |
 | `screend install` / `uninstall` | Register or remove the login agent |
+| `screend version` | Print the version |
 | `screend tone` | Diagnostic test tone (`--device` `--left` `--right` `--amp`) |
 
 ## Adding your microphone
@@ -116,6 +117,10 @@ Claims in this README were measured, not assumed:
   system default nor the aggregate's clock was captured at −16.5 dB.
 - **`screencapture -G` really honours the device.** An unknown UID errors out; an interface with
   nothing plugged in records −71 dB of silence.
+- **44.1 kHz sources are not pitch-shifted.** The aggregate is clocked at 48 kHz, so a 44.1 kHz
+  source goes through sample rate conversion. A 44.1 kHz 1 kHz tone recorded at exactly 1 kHz,
+  at the same level as a 48 kHz one, with nothing at 918 Hz — the frequency a broken conversion
+  would have produced.
 - **Defaults unchanged** before, during and after a session.
 - Final recording: `2 ch, 48000 Hz, Stereo (L R)`, zero clipped samples.
 

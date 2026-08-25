@@ -115,11 +115,20 @@ watchers — plus stable, tagged versioning. The tap in Stage 1 works indefinite
 
 ## Known gaps before calling it 1.0
 
-- No version string anywhere. Add `screend --version`.
-- No tests. `swift test` would at least cover UID parsing and argument handling; the audio path
-  needs a real device and is hard to unit test.
-- `kDeviceUID` and `kAgentLabel` are hardcoded to `com.rheegeon.*`. Fine, but rename it to
-  something project-shaped before other people depend on the identifier.
-- Sample rates other than 48 kHz are untested. The aggregate takes its clock from the built-in
-  speakers, so a 44.1 kHz DAW session goes through drift compensation — measure it.
+Closed while preparing v0.1.0:
+
+- ~~No version string.~~ `screend version` / `--version`, kept in step with `Info.plist`.
+- ~~No tests.~~ 14 tests over argument parsing and level formatting, run in CI. The audio path
+  still needs a real device and is not unit tested.
+- ~~Identifiers hardcoded to `com.rheegeon.*`.~~ Now `io.github.redsterx9.screend`. `uninstall`
+  and `install` clean up the old label so existing installs migrate.
+- ~~Sample rates other than 48 kHz untested.~~ Measured: a 44.1 kHz source records at the right
+  pitch, same level as 48 kHz, nothing at the frequency a bad conversion would produce.
+
+Still open:
+
 - Multi-display and external-display recording untested.
+- No `brew audit --strict` run against the formula yet.
+- Behaviour when the built-in speakers are absent (Mac mini with nothing attached, headless)
+  is untested — the aggregate clock falls back to the default output device, which should work,
+  but it has not been on real hardware.

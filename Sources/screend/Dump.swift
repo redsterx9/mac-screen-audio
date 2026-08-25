@@ -1,5 +1,6 @@
 import Foundation
 import CoreAudio
+import ScreendCore
 import AudioToolbox
 
 /// Prints the raw input stream layout of a device. Diagnostic aid for when a virtual

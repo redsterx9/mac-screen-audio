@@ -1,9 +1,10 @@
 import Foundation
 import CoreAudio
+import ScreendCore
 
-let kDeviceUID = "com.rheegeon.screend.system-audio"
+let kDeviceUID = "io.github.redsterx9.screend.system-audio"
 let kDefaultDeviceName = "Screen Recording Audio"
-let kAgentLabel = "com.rheegeon.screend"
+let kAgentLabel = "io.github.redsterx9.screend"
 
 let usage = """
 screend — record your Mac's own audio with the built-in screen recorder
@@ -20,6 +21,7 @@ screend — record your Mac's own audio with the built-in screen recorder
 
   screend install [--mic]   Start automatically at login
   screend uninstall         Remove the login agent
+  screend version           Print the version
 
 screend never changes your default output device, default input device,
 or audio interface configuration.
@@ -27,12 +29,14 @@ or audio interface configuration.
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
-let args = Array(CommandLine.arguments.dropFirst())
+let cli = Arguments(Array(CommandLine.arguments.dropFirst()))
 
 /// `--mic` alone means "the current default input"; `--mic <uid>` picks a specific device.
-func microphoneUID(from args: [String]) -> String?? {
-    guard let i = args.firstIndex(of: "--mic") else { return .some(nil) }
-    if i + 1 < args.count, !args[i + 1].hasPrefix("--") { return .some(args[i + 1]) }
+/// Returns nil only when `--mic` was asked for and no input device exists at all.
+func requestedMicrophoneUID() -> String?? {
+    let mic = cli.optional("--mic")
+    guard mic.present else { return .some(nil) }
+    if let explicit = mic.value { return .some(explicit) }
     guard let uid = CA.defaultInputDevice.flatMap(CA.uid) else { return nil }
     return .some(uid)
 }
@@ -42,7 +46,11 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-switch args.first ?? "help" {
+switch cli.command {
+
+case "version", "--version", "-v":
+    print("screend \(Screend.version)")
+
 
 case "list":
     print("Input devices:")
@@ -118,9 +126,8 @@ case "check":
     if !systemHeard { exit(1) }
 
 case "on":
-    var name = kDefaultDeviceName
-    if let i = args.firstIndex(of: "--name"), i + 1 < args.count { name = args[i + 1] }
-    guard let micUID = microphoneUID(from: args) else { fail("no microphone device found") }
+    let name = cli.value(for: "--name", default: kDefaultDeviceName)
+    guard let micUID = requestedMicrophoneUID() else { fail("no microphone device found") }
 
     _ = SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
 
@@ -176,16 +183,15 @@ case "monitor":
         let peaks = monitor.channelPeaks
         monitor.resetPeaks()
         let bars = peaks.enumerated().map { index, peak -> String in
-            let level = peak <= 0 ? 0 : max(0, min(40, Int((20 * log10(peak) + 60) / 1.5)))
             let label = monitorChannels > 2 && index == 0 ? "MIC" : (index % 2 == 0 ? " L " : " R ")
-            return "\(label) |\(String(repeating: "█", count: level))\(String(repeating: "·", count: 40 - level))| \(dbString(peak))"
+            return "\(label) |\(levelBar(peak))| \(dbString(peak))"
         }
         print("\u{1B}[2K" + bars.joined(separator: "   "), terminator: "\r")
         fflush(stdout)
     }
 
 case "install":
-    guard let micUID = microphoneUID(from: args) else { fail("no microphone device found") }
+    guard let micUID = requestedMicrophoneUID() else { fail("no microphone device found") }
     do {
         let path = try LaunchAgent.install(withMicrophone: micUID != nil)
         print("""
@@ -204,18 +210,17 @@ case "uninstall":
 
 case "tone":
     // Diagnostic: send a test tone to a specific output device.
-    var toneDevice = CA.builtInOutputDevice.flatMap(CA.uid) ?? ""
-    if let i = args.firstIndex(of: "--device"), i + 1 < args.count { toneDevice = args[i + 1] }
+    let toneDevice = cli.value(for: "--device",
+                               default: CA.builtInOutputDevice.flatMap(CA.uid) ?? "")
     var toneChannels: Set<Int> = [0, 1]
-    if args.contains("--left") { toneChannels = [0] }
-    if args.contains("--right") { toneChannels = [1] }
-    var toneAmp: Float = 0.25
-    if let i = args.firstIndex(of: "--amp"), i + 1 < args.count { toneAmp = Float(args[i + 1]) ?? 0.25 }
-    var toneSeconds = 3.0
-    if let i = args.firstIndex(of: "--seconds"), i + 1 < args.count { toneSeconds = Double(args[i + 1]) ?? 3.0 }
+    if cli.has("--left") { toneChannels = [0] }
+    if cli.has("--right") { toneChannels = [1] }
     do {
-        try ToneGenerator.play(deviceUID: toneDevice, frequency: 1000,
-                               seconds: toneSeconds, channels: toneChannels, amplitude: toneAmp)
+        try ToneGenerator.play(deviceUID: toneDevice,
+                               frequency: cli.doubleValue(for: "--frequency", default: 1000),
+                               seconds: cli.doubleValue(for: "--seconds", default: 3),
+                               channels: toneChannels,
+                               amplitude: cli.floatValue(for: "--amp", default: 0.25))
     } catch { fail("\(error)") }
 
 case "dump":
