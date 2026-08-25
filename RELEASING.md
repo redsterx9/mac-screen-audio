@@ -2,7 +2,10 @@
 
 Where this can realistically go, in the order that gives the most back for the least work.
 
-## Stage 1 — Homebrew tap (do this first)
+**Status:** Stages 1 and 2 are done. `brew install redsterx9/tap/screend` works, `brew services`
+manages the resident process, and v0.1.1 is tagged and released. Stages 3–6 are still ahead.
+
+## Stage 1 — Homebrew tap ✅ done
 
 A one-line install is the single biggest difference between "interesting repo" and "thing people
 actually run". A tap is just a GitHub repo named `homebrew-tap` with a formula in it.
@@ -20,7 +23,9 @@ Two things this buys beyond convenience:
   launchd plist. `LaunchAgent.swift` can stay for people who clone the repo, but the Homebrew
   path should use `service do` instead of `screend install`.
 
-Draft formula for `redsterx9/homebrew-tap/Formula/screend.rb`:
+Live at [redsterx9/homebrew-tap](https://github.com/redsterx9/homebrew-tap). `brew install`,
+`brew services start`, `brew upgrade` and `brew audit --strict --online` are all verified on a
+clean install. The formula:
 
 ```ruby
 class Screend < Formula
@@ -52,16 +57,21 @@ end
 ```
 
 `--disable-sandbox` is needed because SwiftPM's sandbox blocks the linker flags that embed
-`Info.plist`. Worth confirming on a clean machine before tagging.
+`Info.plist`, and without that plist macOS has no usage description to show when it prompts.
+Confirmed by building the release tarball from scratch.
 
-## Stage 2 — Tag a release
+## Stage 2 — Tag a release ✅ done
 
-1. `git tag v0.1.0 && git push --tags`
-2. `gh release create v0.1.0 --generate-notes`
-3. `shasum -a 256` the auto-generated tarball, put it in the formula.
+The loop, now exercised twice:
 
-Keep `Info.plist` version keys in sync with the tag from here on — right now there are none, and
-Homebrew's `test do` block is the only version check.
+1. Bump `Sources/ScreendCore/Version.swift` and the `Info.plist` version keys.
+2. `git tag -a vX.Y.Z && git push origin vX.Y.Z`
+3. `gh release create vX.Y.Z`
+4. `shasum -a 256` the release tarball, update `url` and `sha256` in the formula, push the tap.
+5. `brew update && brew upgrade screend && brew services restart screend`
+
+The formula's `test do` block asserts the reported version matches the formula version, so a
+forgotten bump fails the audit rather than shipping quietly.
 
 ## Stage 3 — Signing and notarization (only if you ship binaries)
 
@@ -76,9 +86,12 @@ If you do want a downloadable binary:
 
 There is a second reason to care about signing even for the Homebrew path. macOS ties permission
 grants to code identity. An ad-hoc signed binary — which is what `swift build` produces — gets an
-unstable identity, so **a permission grant can be lost on every upgrade** and the user gets
-re-prompted. A stable Developer ID makes the grant stick across versions. Worth testing on a
-clean machine before deciding how much this actually bites.
+unstable identity, so a permission grant can in principle be lost on every upgrade.
+
+One data point against that being severe: upgrading 0.1.0 → 0.1.1 through Homebrew replaced the
+binary and `screend check` kept working with no new prompt. That is not conclusive — permission
+here may be attributed to the launching process rather than to the binary — so it still needs a
+test on a machine that has never granted the permission.
 
 ## Stage 4 — The real adoption lever: a menu bar app
 
