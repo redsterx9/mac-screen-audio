@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key>
+    <string>com.rheegeon.screend</string>
+    <key>CFBundleName</key>
+    <string>screend</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>screend가 화면 녹화에 넣을 시스템 사운드를 캡처합니다.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>screend가 화면 녹화에 넣을 마이크 소리를 캡처합니다.</string>
+</dict>
+</plist>
