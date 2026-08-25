@@ -13,13 +13,24 @@ macOS 기본 녹화(`Cmd+Shift+5`, QuickTime)는 마이크만 받는다. 유튜�
 녹화기의 마이크 메뉴에서 이 장치를 고르면 시스템 소리가 스테레오로 녹화된다.
 
 ```bash
+brew install redsterx9/tap/screend
+brew services start screend
+```
+
+이후 `Cmd+Shift+5` → **옵션** → **마이크** → **"Screen Recording Audio"** → 녹화.
+한 번 골라두면 macOS 가 기억한다.
+
+<details>
+<summary>Homebrew 없이 설치</summary>
+
+```bash
 git clone https://github.com/redsterx9/mac-screen-audio
 cd mac-screen-audio
 ./install.sh
 ```
 
-이후 `Cmd+Shift+5` → **옵션** → **마이크** → **"Screen Recording Audio"** → 녹화.
-한 번 골라두면 macOS 가 기억한다.
+`install.sh` 는 빌드해서 `~/.local/bin` 에 넣고 자체 로그인 에이전트를 등록한다.
+</details>
 
 ## 오디오 설정을 안 건드린다
 

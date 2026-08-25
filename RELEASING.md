@@ -125,10 +125,13 @@ Closed while preparing v0.1.0:
 - ~~Sample rates other than 48 kHz untested.~~ Measured: a 44.1 kHz source records at the right
   pitch, same level as 48 kHz, nothing at the frequency a bad conversion would produce.
 
+Done in v0.1.0/v0.1.1: the tap is live at `redsterx9/homebrew-tap`, `brew install` and
+`brew services start` both verified on a clean install, and `brew audit --strict --online`
+passes.
+
 Still open:
 
 - Multi-display and external-display recording untested.
-- No `brew audit --strict` run against the formula yet.
 - Behaviour when the built-in speakers are absent (Mac mini with nothing attached, headless)
   is untested — the aggregate clock falls back to the default output device, which should work,
   but it has not been on real hardware.

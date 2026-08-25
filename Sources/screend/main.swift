@@ -70,7 +70,7 @@ case "status":
     } else {
         print("\nscreend device: off")
     }
-    print(LaunchAgent.isInstalled ? "Login agent:    installed" : "Login agent:    not installed")
+    print("Login agent:    \(LaunchAgent.statusDescription)")
 
 case "off":
     print(SystemAudioDevice.destroyLeftover(uid: kDeviceUID)

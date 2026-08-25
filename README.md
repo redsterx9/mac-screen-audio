@@ -17,13 +17,24 @@ your Mac is actually playing. No YouTube audio, no game audio, no call audio, no
 in the recorder's Microphone menu and your system audio lands in the recording, in stereo.
 
 ```bash
+brew install redsterx9/tap/screend
+brew services start screend
+```
+
+Then: `Cmd+Shift+5` → **Options** → **Microphone** → **"Screen Recording Audio"** → record.
+macOS remembers the choice.
+
+<details>
+<summary>Without Homebrew</summary>
+
+```bash
 git clone https://github.com/redsterx9/mac-screen-audio
 cd mac-screen-audio
 ./install.sh
 ```
 
-Then: `Cmd+Shift+5` → **Options** → **Microphone** → **"Screen Recording Audio"** → record.
-macOS remembers the choice.
+`install.sh` builds, copies the binary to `~/.local/bin`, and registers its own login agent.
+</details>
 
 ## It does not touch your audio setup
 

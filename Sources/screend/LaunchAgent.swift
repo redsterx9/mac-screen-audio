@@ -15,6 +15,25 @@ enum LaunchAgent {
         FileManager.default.fileExists(atPath: plistURL.path)
     }
 
+    /// Homebrew manages its own launchd job rather than using `screend install`, so a
+    /// Homebrew user would otherwise be told no agent is installed while one is clearly running.
+    static let homebrewLabel = "homebrew.mxcl.screend"
+
+    static func agentPlistExists(label: String) -> Bool {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+
+    static var statusDescription: String {
+        if isInstalled { return "installed (screend install)" }
+        if agentPlistExists(label: homebrewLabel) { return "installed (brew services)" }
+        if let stale = legacyLabels.first(where: agentPlistExists) {
+            return "not installed (stale agent found: \(stale) — run `screend uninstall`)"
+        }
+        return "not installed"
+    }
+
     static func install(withMicrophone mic: Bool) throws -> String {
         let executable = URL(fileURLWithPath: CommandLine.arguments[0])
             .resolvingSymlinksInPath().standardizedFileURL.path
