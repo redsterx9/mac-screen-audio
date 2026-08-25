@@ -33,12 +33,12 @@ final class ChannelMeter {
         var id: AudioDeviceIOProcID?
         var status = AudioDeviceCreateIOProcIDWithBlock(&id, deviceID, nil, block)
         guard status == noErr, let id else {
-            throw ScreendError.coreAudio("IOProc 생성", status)
+            throw ScreendError.coreAudio("creating the IOProc", status)
         }
         procID = id
         status = AudioDeviceStart(deviceID, id)
         guard status == noErr else {
-            throw ScreendError.coreAudio("장치 시작", status)
+            throw ScreendError.coreAudio("starting the device", status)
         }
     }
 

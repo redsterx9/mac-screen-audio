@@ -134,9 +134,9 @@ enum CA {
 
         var description: String {
             """
-            출력          : \(output ?? "-")
-            시스템 출력   : \(systemOutput ?? "-")
-            입력          : \(input ?? "-")
+            output        : \(output ?? "-")
+            system output : \(systemOutput ?? "-")
+            input         : \(input ?? "-")
             """
         }
     }

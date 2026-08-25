@@ -16,7 +16,7 @@ enum ToneGenerator {
                      channels: Set<Int>,
                      amplitude: Float) throws {
         guard let deviceID = CA.device(forUID: deviceUID) else {
-            throw ScreendError.message("출력 장치를 찾지 못했습니다: \(deviceUID)")
+            throw ScreendError.message("output device not found: \(deviceUID)")
         }
 
         let engine = AVAudioEngine()
@@ -26,7 +26,7 @@ enum ToneGenerator {
         let outputChannels = max(1, CA.channelCount(of: deviceID, scope: kAudioObjectPropertyScopeOutput))
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate,
                                          channels: AVAudioChannelCount(outputChannels))
-        else { throw ScreendError.message("오디오 포맷을 만들지 못했습니다.") }
+        else { throw ScreendError.message("could not build an audio format") }
 
         var phase: Double = 0
         let increment = 2 * Double.pi * frequency / sampleRate

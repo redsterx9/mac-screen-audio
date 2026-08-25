@@ -41,7 +41,7 @@ final class InputMeter {
                                         Unmanaged.passUnretained(self).toOpaque(),
                                         nil, nil, 0, &newQueue)
         guard status == noErr, let newQueue else {
-            throw ScreendError.coreAudio("입력 큐 생성", status)
+            throw ScreendError.coreAudio("creating the input queue", status)
         }
         queue = newQueue
 
@@ -51,7 +51,7 @@ final class InputMeter {
                                   $0, UInt32(MemoryLayout<CFString>.size))
         }
         guard status == noErr else {
-            throw ScreendError.coreAudio("입력 장치 지정", status)
+            throw ScreendError.coreAudio("selecting the input device", status)
         }
 
         for _ in 0..<3 {
@@ -62,7 +62,7 @@ final class InputMeter {
 
         status = AudioQueueStart(newQueue, nil)
         guard status == noErr else {
-            throw ScreendError.coreAudio("입력 큐 시작", status)
+            throw ScreendError.coreAudio("starting the input queue", status)
         }
     }
 

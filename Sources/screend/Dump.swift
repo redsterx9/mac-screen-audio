@@ -7,7 +7,7 @@ import AudioToolbox
 func dumpInputStreams(of device: AudioObjectID) {
     let streams = CA.objectIDs(device, CA.addr(kAudioDevicePropertyStreams,
                                                scope: kAudioObjectPropertyScopeInput))
-    print("입력 스트림 \(streams.count)개")
+    print("input streams: \(streams.count)")
     for (index, stream) in streams.enumerated() {
         guard var format = CA.value(stream,
                                     CA.addr(kAudioStreamPropertyVirtualFormat),

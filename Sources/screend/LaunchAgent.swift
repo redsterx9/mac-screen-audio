@@ -18,7 +18,7 @@ enum LaunchAgent {
         let executable = URL(fileURLWithPath: CommandLine.arguments[0])
             .resolvingSymlinksInPath().standardizedFileURL.path
         guard FileManager.default.isExecutableFile(atPath: executable) else {
-            throw ScreendError.message("screend 실행 파일 경로를 찾지 못했습니다: \(executable)")
+            throw ScreendError.message("could not resolve the screend executable: \(executable)")
         }
 
         var arguments = [executable, "on"]
@@ -60,7 +60,7 @@ enum LaunchAgent {
         try process.run()
         process.waitUntilExit()
         guard process.terminationStatus == 0 else {
-            throw ScreendError.message("launchctl \(arguments.joined(separator: " ")) 실패")
+            throw ScreendError.message("launchctl \(arguments.joined(separator: " ")) failed")
         }
         return process.terminationStatus
     }

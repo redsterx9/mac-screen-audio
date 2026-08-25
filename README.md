@@ -1,108 +1,134 @@
 # screend
 
-기본 화면 녹화(Cmd+Shift+5, QuickTime)에 **맥에서 나는 소리를 스테레오 원본 그대로** 넣어주는 도구.
+**Record your Mac's own audio with the built-in screen recorder — without touching a single audio setting.**
 
-## 왜 필요한가
+[![build](https://github.com/redsterx9/mac-screen-audio/actions/workflows/build.yml/badge.svg)](https://github.com/redsterx9/mac-screen-audio/actions/workflows/build.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![platform](https://img.shields.io/badge/macOS-14.2%2B-lightgrey)
 
-macOS 기본 녹화기는 오디오 **입력 장치 하나**만 받는다. 그래서 유튜브 소리, 게임 소리,
-로직 마스터 출력 같은 "맥 내부에서 나는 소리"는 원래 녹화가 안 된다.
+[한국어 문서](README.ko.md)
 
-## 왜 오디오 설정을 안 건드리는가
+---
 
-흔히 쓰는 BlackHole 방법이 세팅을 망치는 이유는 BlackHole 자체가 아니라
-**"다중 출력 장치를 만들어 시스템 출력으로 바꿔라"** 는 단계다. 출력 장치를 바꾸는 순간
-인터페이스 라우팅이 틀어지고, 음악 작업할 때마다 되돌려야 한다.
+macOS screen recording (`Cmd+Shift+5`, QuickTime) can capture a microphone, but not the sound
+your Mac is actually playing. No YouTube audio, no game audio, no call audio, no DAW output.
 
-screend 는 macOS 14.2 부터 들어간 **Core Audio process tap** 을 쓴다. 탭은 재생되는 소리를
-지나가면서 복사만 하는 장치라서:
+`screend` fixes that by exposing a **Core Audio process tap** as a normal input device. Pick it
+in the recorder's Microphone menu and your system audio lands in the recording, in stereo.
 
-- 시스템 출력 장치 — 안 바꾼다
-- 시스템 입력 장치 — 안 바꾼다
-- Scarlett 같은 오디오 인터페이스 — 애초에 집계 장치에 넣지 않는다 (클럭은 내장 스피커에서 가져온다)
-- 드라이버 설치 — 없다
-
-`screend off` 하면 장치가 사라지고 되돌릴 설정이 남지 않는다.
-`screend status` 로 기본 장치가 그대로인지 언제든 확인할 수 있다.
-
-## 설치
-
-```
+```bash
+git clone https://github.com/redsterx9/mac-screen-audio
+cd mac-screen-audio
 ./install.sh
 ```
 
-로그인할 때마다 자동으로 켜진다. 해제는 `screend uninstall`.
+Then: `Cmd+Shift+5` → **Options** → **Microphone** → **"Screen Recording Audio"** → record.
+macOS remembers the choice.
 
-## 쓰는 법
+## It does not touch your audio setup
 
-1. Cmd+Shift+5
-2. **옵션 → 마이크 → "화면 녹화 사운드"**
-3. 녹화
+This is the whole point. The usual BlackHole recipe breaks things not because of BlackHole
+itself, but because of the step that says *"create a Multi-Output Device and make it your system
+output."* The moment your output device changes, your interface routing is wrong, and you get to
+put it back every time you want to do actual work.
 
-한 번 골라두면 macOS 가 기억한다.
+A process tap is a passive copy of audio that is already playing. So:
 
-## 로직 마스터 녹음
+|                                   | screend | BlackHole + Multi-Output |
+| --------------------------------- | ------- | ------------------------ |
+| Changes your default output device | No      | **Yes**                  |
+| Changes your default input device  | No      | No                       |
+| Touches your audio interface       | No      | **Yes**                  |
+| Installs a driver                  | No      | **Yes**                  |
+| Needs an admin password            | No      | **Yes**                  |
+| You still hear the audio           | Yes     | Yes                      |
+| Stereo L/R preserved               | Yes     | Yes                      |
 
-된다. 탭은 **장치 단위가 아니라 프로세스 단위**로 동작한다. 로직이 Scarlett 으로
-출력하고 있어도, screend 의 클럭이 내장 스피커여도, 로직이 내는 소리는 그대로 잡힌다.
-(기본 출력이 아닌 별도 출력 장치로 재생한 톤이 그대로 캡처되는 것을 확인했다.)
+`screend off` removes the device and leaves nothing to undo. `screend status` prints your audio
+defaults any time you want to confirm they have not moved.
 
-로직 세션에서 직접 확인하려면:
+## Recording a DAW
 
-```
-screend monitor
-```
+Yes, this captures Logic Pro, Ableton, or anything else — including when the DAW is playing
+through an audio interface and `screend` is not.
 
-실시간 L/R 미터가 뜬다. 로직에서 재생을 걸고 바가 움직이면 잡히는 것이다.
+The tap is **process-scoped, not device-scoped**. It follows the application, not the output
+route. Verified: a tone sent to a non-default output device was captured cleanly.
 
-한 가지 주의: 탭이 잡는 건 **로직이 출력하는 최종 소리**다. 마스터 페이더 아래 신호라서
-로직 마스터 볼륨을 줄이면 녹음도 같이 줄어든다. 제대로 된 믹스다운이 필요하면
-로직에서 바운스하는 게 맞다. 화면 녹화에 들어갈 참고용 오디오로 쓰는 용도다.
+To confirm on your own rig, run `screend monitor`, then hit play in your DAW and watch the meter.
 
-## 스테레오
+One thing to know: the tap captures the DAW's **final output**, below the master fader. Pull the
+master down and the recording comes down with it. For a real mixdown, bounce from the DAW —
+this is for getting reference audio into a screen recording.
 
-원본 스테레오 L/R 이 그대로 유지된다. 모노로 합쳐지지 않는다.
-왼쪽 1kHz / 오른쪽 3kHz 를 재생해서 녹화하면 각 채널에 해당 주파수만 잡히고
-반대 채널은 -86dB 아래로 떨어진다 (약 72dB 분리).
+## Stereo
 
-## 명령어
+Left and right stay separate. Play 1 kHz on the left and 3 kHz on the right, record it, and each
+channel carries only its own tone with the opposite channel below −86 dB — roughly **72 dB of
+channel separation**. Output is `2 ch, 48000 Hz, Stereo (L R)`.
 
-| 명령 | 하는 일 |
-|---|---|
-| `screend on` | 장치 켜고 대기 (Ctrl-C 로 종료) |
-| `screend off` | 남은 장치 정리 |
-| `screend status` | 상태 + 오디오 기본 장치 확인 |
-| `screend check` | 채널별로 소리가 들어오는지 실제 측정 |
-| `screend monitor` | 실시간 L/R 레벨 미터 |
-| `screend list` | 입력 장치와 UID 목록 |
-| `screend install` / `uninstall` | 자동 실행 등록 / 해제 |
-| `screend tone` | 진단용 테스트 톤 (`--device` `--left` `--right` `--amp`) |
+## Commands
 
-## 마이크를 같이 넣고 싶다면
+| Command | What it does |
+| --- | --- |
+| `screend on` | Create the device and stay resident (Ctrl-C to stop) |
+| `screend off` | Remove a device left behind by an earlier run |
+| `screend status` | Show state and confirm your audio defaults are untouched |
+| `screend check` | Measure, per channel, whether audio is actually arriving |
+| `screend monitor` | Live L/R level meter |
+| `screend list` | List input devices and their UIDs |
+| `screend install` / `uninstall` | Register or remove the login agent |
+| `screend tone` | Diagnostic test tone (`--device` `--left` `--right` `--amp`) |
 
-`screend on --mic` / `./install.sh --mic` 로 마이크를 같은 장치에 합칠 수 있다.
-단 기본 녹화기가 입력을 하나만 받기 때문에 **한 트랙에 섞여서** 들어가고, 나중에
-마이크만 볼륨을 조절할 수는 없다. 지금 설정은 마이크 없이 시스템 소리만이다.
+## Adding your microphone
 
-## 동작 구조
+`screend on --mic` (or `./install.sh --mic`) folds your microphone into the same device, so
+narration and system audio are captured together.
 
-`screend on` 은 두 가지를 만든다.
+The built-in recorder accepts exactly **one** input device, so the two arrive **mixed into a
+single track** — you cannot rebalance them afterwards. If your mic is hot, `screend check` will
+warn you; lower it in System Settings → Sound → Input.
 
-1. **process tap** — 모든 앱의 재생 오디오를 스테레오로 복사한다.
-   `muteBehavior = .unmuted` 라서 소리는 평소대로 스피커/인터페이스로 계속 나간다.
-2. **집계 장치 "화면 녹화 사운드"** — 탭을 입력 채널로 노출시킨다. 공개 장치라서
-   `screencapture` 와 Cmd+Shift+5 의 마이크 목록에 뜬다.
+## How it works
 
-탭은 만든 프로세스가 죽으면 같이 사라진다. 그래서 `screend on` 은 종료하지 않고 떠 있고,
-`screend install` 은 이걸 로그인 에이전트로 등록한다.
+`screend on` creates two things:
 
-## 검증 기록
+1. A **process tap** over every application's playback, in stereo. `muteBehavior = .unmuted`, so
+   the audio keeps playing out of your speakers or interface exactly as before.
+2. An **aggregate device** named "Screen Recording Audio" that exposes the tap as input channels.
+   It is public, so `screencapture`, QuickTime and the `Cmd+Shift+5` toolbar all list it.
 
-- **마이크 경로가 아님**: 스피커 볼륨 0(방에서 아무 소리도 안 나는 상태)에서 1kHz 순음을
-  재생하고 녹화 → 녹화 파일에 1kHz 가 -12.2dB 로 잡힘. 볼륨 75일 때와 동일.
-- **스테레오 분리**: L 에만 1kHz → R 은 -240dB(완전 무음). L=1kHz/R=3kHz → 각 채널에
-  해당 주파수만, 반대 채널은 -86dB 아래.
-- **타 장치 출력도 캡처**: 기본 출력이 아닌 별도 출력 장치로 보낸 톤이 -16.5dB 로 잡힘
-  → 탭이 프로세스 단위로 동작함을 확인 (로직 마스터가 잡히는 근거).
-- **`-G` 가 지정 장치를 실제로 씀**: 없는 UID 는 에러, 아무것도 안 꽂힌 인터페이스는 -71dB 무음.
-- **설정 무변동**: `screend on` 전/중/후 기본 출력·시스템 출력·기본 입력 모두 그대로.
-- 최종 녹화 파일: 2ch Stereo(L R) 48kHz, 클리핑 0 샘플.
+The aggregate takes its clock from the **built-in speakers**, never from your audio interface —
+an interface can be unplugged mid-session, and there is no reason to pull it into the aggregate.
+
+A process tap dies with the process that created it, which is why `screend on` stays resident and
+why `screend install` registers it as a login agent.
+
+## Verification
+
+Claims in this README were measured, not assumed:
+
+- **Not a microphone path.** With the speakers at volume 0 — nothing audible in the room — a
+  1 kHz tone still recorded at −12.2 dB, identical to the level at volume 75.
+- **Stereo separation.** Left-only tone → right channel at −240 dB (digital silence).
+  L=1 kHz / R=3 kHz → each channel carries only its own tone, opposite channel below −86 dB.
+- **Other output devices are captured.** A tone sent to an output device that was neither the
+  system default nor the aggregate's clock was captured at −16.5 dB.
+- **`screencapture -G` really honours the device.** An unknown UID errors out; an interface with
+  nothing plugged in records −71 dB of silence.
+- **Defaults unchanged** before, during and after a session.
+- Final recording: `2 ch, 48000 Hz, Stereo (L R)`, zero clipped samples.
+
+## Requirements
+
+macOS 14.2 or later (Core Audio process taps), Xcode command line tools.
+
+## Notes
+
+- macOS may prompt for Screen Recording and Microphone permission the first time.
+- `screend` never writes to any audio device property. It only reads them, and creates and
+  destroys its own tap and aggregate device.
+
+## License
+
+MIT

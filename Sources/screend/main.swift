@@ -2,33 +2,34 @@ import Foundation
 import CoreAudio
 
 let kDeviceUID = "com.rheegeon.screend.system-audio"
-let kDefaultDeviceName = "화면 녹화 사운드"
+let kDefaultDeviceName = "Screen Recording Audio"
 let kAgentLabel = "com.rheegeon.screend"
 
 let usage = """
-screend — 기본 화면 녹화(Cmd+Shift+5)에 맥북 미디어 소리를 넣어주는 도구
+screend — record your Mac's own audio with the built-in screen recorder
 
-  screend on [--mic [장치UID]] [--name <이름>]
-        가상 입력 장치를 켜고 대기합니다 (Ctrl-C 로 종료).
-        --mic 를 주면 마이크를 같은 장치에 합쳐서 내레이션까지 한 번에 녹음됩니다.
+  screend on [--mic [deviceUID]] [--name <name>]
+        Create the virtual input device and stay resident (Ctrl-C to stop).
+        --mic folds your microphone into the same device so narration is captured too.
 
-  screend off        남아 있는 장치 정리
-  screend status     현재 상태와 오디오 기본 장치 확인
-  screend check      장치에 실제로 소리가 들어오는지 채널별로 검사
-  screend monitor    실시간 L/R 레벨 미터 (로직 재생 걸어놓고 확인용)
-  screend list       입력 장치와 UID 목록
+  screend off        Remove a device left behind by an earlier run
+  screend status     Show state and confirm your audio defaults are untouched
+  screend check      Measure, per channel, whether audio is actually arriving
+  screend monitor    Live L/R level meter
+  screend list       List input devices and their UIDs
 
-  screend install [--mic]   로그인할 때 자동으로 켜지도록 등록
-  screend uninstall         자동 실행 해제
+  screend install [--mic]   Start automatically at login
+  screend uninstall         Remove the login agent
 
-시스템 출력 장치, 시스템 입력 장치, 오디오 인터페이스 설정은 절대 건드리지 않습니다.
+screend never changes your default output device, default input device,
+or audio interface configuration.
 """
 
 setvbuf(stdout, nil, _IOLBF, 0)
 
 let args = Array(CommandLine.arguments.dropFirst())
 
-/// `--mic` on its own means "the current default input"; `--mic <uid>` picks a specific one.
+/// `--mic` alone means "the current default input"; `--mic <uid>` picks a specific device.
 func microphoneUID(from args: [String]) -> String?? {
     guard let i = args.firstIndex(of: "--mic") else { return .some(nil) }
     if i + 1 < args.count, !args[i + 1].hasPrefix("--") { return .some(args[i + 1]) }
@@ -37,14 +38,14 @@ func microphoneUID(from args: [String]) -> String?? {
 }
 
 func fail(_ message: String) -> Never {
-    FileHandle.standardError.write("오류: \(message)\n".data(using: .utf8)!)
+    FileHandle.standardError.write("error: \(message)\n".data(using: .utf8)!)
     exit(1)
 }
 
 switch args.first ?? "help" {
 
 case "list":
-    print("입력 장치:")
+    print("Input devices:")
     for id in CA.allDevices {
         let inputs = CA.channelCount(of: id, scope: kAudioObjectPropertyScopeInput)
         guard inputs > 0 else { continue }
@@ -56,20 +57,20 @@ case "status":
     print(CA.DefaultsSnapshot.capture().description)
     if let device = CA.device(forUID: kDeviceUID) {
         let channels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)
-        print("\nscreend 장치: 켜짐 — \(CA.name(of: device) ?? kDefaultDeviceName) [\(channels)ch]"
-              + (channels > 2 ? " (마이크 포함)" : ""))
+        print("\nscreend device: on — \(CA.name(of: device) ?? kDefaultDeviceName) [\(channels)ch]"
+              + (channels > 2 ? " (microphone included)" : ""))
     } else {
-        print("\nscreend 장치: 꺼짐")
+        print("\nscreend device: off")
     }
-    print(LaunchAgent.isInstalled ? "자동 실행: 등록됨" : "자동 실행: 등록 안 됨")
+    print(LaunchAgent.isInstalled ? "Login agent:    installed" : "Login agent:    not installed")
 
 case "off":
     print(SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
-          ? "장치를 정리했습니다." : "정리할 장치가 없습니다.")
+          ? "Device removed." : "Nothing to remove.")
 
 case "check":
     guard let device = CA.device(forUID: kDeviceUID) else {
-        fail("장치가 꺼져 있습니다. 먼저 `screend on` 을 실행하세요.")
+        fail("device is off — run `screend on` first")
     }
     let channels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)
     let hasMic = channels > 2
@@ -81,7 +82,7 @@ case "check":
     Thread.sleep(forTimeInterval: 1.0)
     let idle = meter.channelPeaks
 
-    print("테스트 사운드를 재생하는 중...")
+    print("Playing a test sound...")
     meter.resetPeaks()
     let player = Process()
     player.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
@@ -96,21 +97,22 @@ case "check":
     let systemChannels = hasMic ? Array(1..<channels) : Array(0..<channels)
     print("")
     for c in 0..<channels {
-        let label = hasMic && c == 0 ? "마이크  " : "시스템  "
-        print("  ch\(c + 1) \(label) 대기 \(dbString(idle[c]))   재생 중 \(dbString(active[c]))")
+        let label = hasMic && c == 0 ? "mic   " : "system"
+        print("  ch\(c + 1) \(label)  idle \(dbString(idle[c]))   playing \(dbString(active[c]))")
     }
 
     let systemHeard = systemChannels.contains { active[$0] - idle[$0] > 0.01 }
     print(systemHeard
-          ? "\n✅ 시스템 사운드가 들어옵니다. 기본 화면 녹화에서 이 장치를 고르면 됩니다."
-          : "\n❌ 재생해도 시스템 채널 레벨이 오르지 않습니다.")
+          ? "\n✅ System audio is reaching the device. Select it in the screen recorder."
+          : "\n❌ System channels did not react to playback.")
 
     if hasMic {
         if active[0] < 0.001 {
-            print("⚠️  마이크 채널이 무음입니다. 시스템 설정 → 개인정보 보호 및 보안 → 마이크 확인.")
+            print("⚠️  The microphone channel is silent.")
+            print("   Check System Settings → Privacy & Security → Microphone.")
         } else if active[0] > 0.95 {
-            print("⚠️  마이크가 너무 큽니다 (\(dbString(active[0]))). 클리핑이 납니다.")
-            print("   시스템 설정 → 사운드 → 입력에서 입력 볼륨을 낮추세요.")
+            print("⚠️  The microphone is clipping (\(dbString(active[0]))).")
+            print("   Lower the input volume in System Settings → Sound → Input.")
         }
     }
     if !systemHeard { exit(1) }
@@ -118,7 +120,7 @@ case "check":
 case "on":
     var name = kDefaultDeviceName
     if let i = args.firstIndex(of: "--name"), i + 1 < args.count { name = args[i + 1] }
-    guard let micUID = microphoneUID(from: args) else { fail("마이크 장치를 찾지 못했습니다.") }
+    guard let micUID = microphoneUID(from: args) else { fail("no microphone device found") }
 
     _ = SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
 
@@ -135,17 +137,17 @@ case "on":
     let channels = CA.channelCount(of: device.aggregateDeviceID, scope: kAudioObjectPropertyScopeInput)
 
     print("""
-    ✅ 준비됨: \(name)  [\(channels)ch\(micUID != nil ? ", 마이크 포함" : "")]
+    ✅ Ready: \(name)  [\(channels)ch\(micUID != nil ? ", microphone included" : "")]
 
-    Cmd+Shift+5 → 옵션 → 마이크 → "\(name)" 선택 후 녹화하세요.
+    Press Cmd+Shift+5 → Options → Microphone → "\(name)", then record.
 
-    오디오 기본 장치 (그대로입니다):
+    Audio defaults (unchanged):
     \(after.description)
     """)
     if before != after {
-        print("\n⚠️  기본 장치가 바뀌었습니다. 이전 상태:\n\(before.description)")
+        print("\n⚠️  Your audio defaults changed. They were:\n\(before.description)")
     }
-    print("\nCtrl-C 로 종료하면 장치를 제거합니다.")
+    print("\nCtrl-C removes the device and exits.")
 
     // A process tap dies with the process that created it, so screend has to stay resident.
     signalHandlerDevice = device
@@ -158,33 +160,15 @@ case "on":
     device.watchForClockDeviceRemoval()
     RunLoop.main.run()
 
-case "install":
-    guard let micUID = microphoneUID(from: args) else { fail("마이크 장치를 찾지 못했습니다.") }
-    do {
-        let path = try LaunchAgent.install(withMicrophone: micUID != nil)
-        print("""
-        ✅ 자동 실행 등록: \(path)
-        지금부터 로그인하면 "\(kDefaultDeviceName)" 장치가 항상 준비되어 있습니다.
-        해제하려면: screend uninstall
-        """)
-    } catch { fail("\(error)") }
-
-case "uninstall":
-    do {
-        try LaunchAgent.uninstall()
-        _ = SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
-        print("자동 실행을 해제하고 장치를 정리했습니다.")
-    } catch { fail("\(error)") }
-
 case "monitor":
     guard let device = CA.device(forUID: kDeviceUID) else {
-        fail("장치가 꺼져 있습니다. 먼저 `screend on` 을 실행하세요.")
+        fail("device is off — run `screend on` first")
     }
     let monitorChannels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)
     let monitor = ChannelMeter(deviceID: device, channelCount: monitorChannels)
     do { try monitor.start() } catch { fail("\(error)") }
 
-    print("실시간 레벨 — 로직에서 재생을 걸어보세요. Ctrl-C 로 종료.\n")
+    print("Live levels — start playback in your DAW or browser. Ctrl-C to stop.\n")
     signal(SIGINT) { _ in print("\n"); exit(0) }
 
     while true {
@@ -200,8 +184,26 @@ case "monitor":
         fflush(stdout)
     }
 
+case "install":
+    guard let micUID = microphoneUID(from: args) else { fail("no microphone device found") }
+    do {
+        let path = try LaunchAgent.install(withMicrophone: micUID != nil)
+        print("""
+        ✅ Login agent installed: \(path)
+        "\(kDefaultDeviceName)" will be available every time you log in.
+        Remove it with: screend uninstall
+        """)
+    } catch { fail("\(error)") }
+
+case "uninstall":
+    do {
+        try LaunchAgent.uninstall()
+        _ = SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
+        print("Login agent removed and device cleaned up.")
+    } catch { fail("\(error)") }
+
 case "tone":
-    // 진단용: 지정한 출력 장치로 테스트 톤을 보낸다.
+    // Diagnostic: send a test tone to a specific output device.
     var toneDevice = CA.builtInOutputDevice.flatMap(CA.uid) ?? ""
     if let i = args.firstIndex(of: "--device"), i + 1 < args.count { toneDevice = args[i + 1] }
     var toneChannels: Set<Int> = [0, 1]
@@ -217,8 +219,8 @@ case "tone":
     } catch { fail("\(error)") }
 
 case "dump":
-    guard let device = CA.device(forUID: kDeviceUID) else { fail("장치가 꺼져 있습니다.") }
-    print("입력 채널 \(CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput))")
+    guard let device = CA.device(forUID: kDeviceUID) else { fail("device is off") }
+    print("Input channels: \(CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput))")
     dumpInputStreams(of: device)
 
 default:

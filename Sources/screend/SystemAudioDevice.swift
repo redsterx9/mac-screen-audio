@@ -8,7 +8,7 @@ enum ScreendError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .coreAudio(let what, let status): return "\(what) 실패 (\(osStatusMessage(status)))"
+        case .coreAudio(let what, let status): return "\(what) failed (\(osStatusMessage(status)))"
         case .message(let text): return text
         }
     }
@@ -55,14 +55,14 @@ final class SystemAudioDevice {
                 ?? microphoneUID
                 ?? CA.builtInOutputDevice.flatMap(CA.uid)
                 ?? CA.defaultOutputDevice.flatMap(CA.uid) else {
-            throw ScreendError.message("클럭으로 쓸 출력 장치를 찾지 못했습니다.")
+            throw ScreendError.message("no output device available to clock the aggregate")
         }
         clockUID_ = clockUID
 
         microphoneUID_ = microphoneUID
         aggregateID = try createAggregate(clockDeviceUID: clockUID, microphoneUID: microphoneUID)
         guard CA.channelCount(of: aggregateID, scope: kAudioObjectPropertyScopeInput) > 0 else {
-            throw ScreendError.message("가상 입력 장치는 만들어졌는데 입력 채널이 없습니다.")
+            throw ScreendError.message("virtual device was created but exposes no input channels")
         }
     }
 
@@ -82,7 +82,7 @@ final class SystemAudioDevice {
         var id = AudioObjectID(kAudioObjectUnknown)
         let status = AudioHardwareCreateProcessTap(description, &id)
         guard status == noErr, id != AudioObjectID(kAudioObjectUnknown) else {
-            throw ScreendError.coreAudio("시스템 오디오 탭 생성", status)
+            throw ScreendError.coreAudio("creating the system audio tap", status)
         }
         tapID = id
     }
@@ -118,7 +118,7 @@ final class SystemAudioDevice {
         var id = AudioObjectID(kAudioObjectUnknown)
         let status = AudioHardwareCreateAggregateDevice(description as CFDictionary, &id)
         guard status == noErr, id != AudioObjectID(kAudioObjectUnknown) else {
-            throw ScreendError.coreAudio("가상 입력 장치 생성", status)
+            throw ScreendError.coreAudio("creating the virtual input device", status)
         }
         return id
     }
