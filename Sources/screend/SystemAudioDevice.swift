@@ -41,8 +41,9 @@ final class SystemAudioDevice {
 
     func create(excludingProcesses excluded: [pid_t] = [],
                 clockDeviceUID: String? = nil,
-                microphoneUID: String? = nil) throws {
-        try createTap(excluding: excluded)
+                microphoneUID: String? = nil,
+                tapDeviceUID: String? = nil) throws {
+        try createTap(excluding: excluded, tapDeviceUID: tapDeviceUID)
 
         // The aggregate needs a real device to take its clock from — a tap on its own has no
         // timebase and the device refuses to start. The clock device is referenced, not
@@ -70,9 +71,18 @@ final class SystemAudioDevice {
     private(set) var clockUID_: String?
     private(set) var microphoneUID_: String?
 
-    private func createTap(excluding excluded: [pid_t]) throws {
+    private func createTap(excluding excluded: [pid_t], tapDeviceUID: String? = nil) throws {
         let objectIDs = excluded.compactMap(Self.audioObjectID(forPID:))
-        let description = CATapDescription(stereoGlobalTapButExcludeProcesses: objectIDs)
+        // A global tap turns out not to follow audio that is playing to a device other than the
+        // one it was created against, so the tap is pinned to a specific output device.
+        let description: CATapDescription
+        if let tapDeviceUID {
+            description = CATapDescription(excludingProcesses: objectIDs,
+                                           deviceUID: tapDeviceUID,
+                                           stream: 0)
+        } else {
+            description = CATapDescription(stereoGlobalTapButExcludeProcesses: objectIDs)
+        }
         description.name = "\(deviceName) Tap"
         description.uuid = tapUUID
         // Public: the tap has to be readable by the *recorder* process, not just by screend.

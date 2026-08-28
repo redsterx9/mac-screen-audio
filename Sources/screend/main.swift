@@ -17,7 +17,8 @@ screend — record your Mac's own audio with the built-in screen recorder
   screend status     Show state and confirm your audio defaults are untouched
   screend check      Measure, per channel, whether audio is actually arriving
   screend monitor    Live L/R level meter
-  screend list       List input devices and their UIDs
+  screend list       List input and output devices with their UIDs
+  screend permission Check or request the Screen & System Audio Recording permission
 
   screend install [--mic]   Start automatically at login
   screend uninstall         Remove the login agent
@@ -53,12 +54,15 @@ case "version", "--version", "-v":
 
 
 case "list":
-    print("Input devices:")
-    for id in CA.allDevices {
-        let inputs = CA.channelCount(of: id, scope: kAudioObjectPropertyScopeInput)
-        guard inputs > 0 else { continue }
-        print("  \(CA.name(of: id) ?? "?")  [\(inputs)ch, \(Int(CA.sampleRate(of: id)))Hz]")
-        print("    UID: \(CA.uid(of: id) ?? "?")")
+    for (title, scope) in [("Input devices:", kAudioObjectPropertyScopeInput),
+                           ("Output devices:", kAudioObjectPropertyScopeOutput)] {
+        print(title)
+        for id in CA.allDevices {
+            let channels = CA.channelCount(of: id, scope: scope)
+            guard channels > 0 else { continue }
+            print("  \(CA.name(of: id) ?? "?")  [\(channels)ch, \(Int(CA.sampleRate(of: id)))Hz]")
+            print("    UID: \(CA.uid(of: id) ?? "?")")
+        }
     }
 
 case "status":
@@ -71,6 +75,10 @@ case "status":
         print("\nscreend device: off")
     }
     print("Login agent:    \(LaunchAgent.statusDescription)")
+    print("Screen & System Audio Recording: \(ScreenRecordingPermission.summary)")
+    if !ScreenRecordingPermission.isGranted {
+        print("\n\(ScreenRecordingPermission.howToFix)")
+    }
 
 case "off":
     print(SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
@@ -110,9 +118,21 @@ case "check":
     }
 
     let systemHeard = systemChannels.contains { active[$0] - idle[$0] > 0.01 }
-    print(systemHeard
-          ? "\n✅ System audio is reaching the device. Select it in the screen recorder."
-          : "\n❌ System channels did not react to playback.")
+    if systemHeard {
+        print("\n✅ System audio is reaching the device. Select it in the screen recorder.")
+    } else if !ScreenRecordingPermission.isGranted {
+        // The overwhelmingly common cause. A tap without this permission is created
+        // successfully and returns buffers full of silence, with no error anywhere.
+        print("""
+
+        ❌ Silence on every channel, because the Screen & System Audio Recording
+           permission is missing. A Core Audio tap without it reports no error —
+           it just hands back silence.
+        \(ScreenRecordingPermission.howToFix)
+        """)
+    } else {
+        print("\n❌ System channels did not react to playback.")
+    }
 
     if hasMic {
         if active[0] < 0.001 {
@@ -128,13 +148,18 @@ case "check":
 case "on":
     let name = cli.value(for: "--name", default: kDefaultDeviceName)
     guard let micUID = requestedMicrophoneUID() else { fail("no microphone device found") }
+    let clockUID = cli.value(for: "--clock")
+    let tapDeviceUID = cli.value(for: "--tap-device")
 
     _ = SystemAudioDevice.destroyLeftover(uid: kDeviceUID)
 
     let before = CA.DefaultsSnapshot.capture()
     let device = SystemAudioDevice(deviceName: name, deviceUID: kDeviceUID)
     do {
-        try device.create(excludingProcesses: [getpid()], microphoneUID: micUID)
+        try device.create(excludingProcesses: [getpid()],
+                          clockDeviceUID: clockUID,
+                          microphoneUID: micUID,
+                          tapDeviceUID: tapDeviceUID)
     } catch {
         device.destroy()
         fail("\(error)")
@@ -154,6 +179,15 @@ case "on":
     if before != after {
         print("\n⚠️  Your audio defaults changed. They were:\n\(before.description)")
     }
+    if !ScreenRecordingPermission.isGranted {
+        print("""
+
+        ⚠️  Screen & System Audio Recording permission is missing.
+           The device exists but will capture silence until it is granted.
+        \(ScreenRecordingPermission.howToFix)
+        """)
+    }
+
     print("\nCtrl-C removes the device and exits.")
 
     // A process tap dies with the process that created it, so screend has to stay resident.
@@ -166,6 +200,30 @@ case "on":
     signal(SIGTERM, cleanup)
     device.watchForClockDeviceRemoval()
     RunLoop.main.run()
+
+case "permission":
+    if ScreenRecordingPermission.isGranted {
+        print("Screen & System Audio Recording: already granted.")
+    } else {
+        print("Requesting Screen & System Audio Recording permission...")
+        ScreenRecordingPermission.request()
+        print(ScreenRecordingPermission.isGranted
+              ? "Granted."
+              : "Still missing.\n\n\(ScreenRecordingPermission.howToFix)")
+    }
+
+case "peak":
+    // Diagnostic: report the highest level seen on each channel over a fixed window.
+    guard let device = CA.device(forUID: kDeviceUID) else { fail("device is off") }
+    let peakChannels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)
+    let peakMeter = ChannelMeter(deviceID: device, channelCount: peakChannels)
+    do { try peakMeter.start() } catch { fail("\(error)") }
+    Thread.sleep(forTimeInterval: 0.3)
+    peakMeter.resetPeaks()
+    Thread.sleep(forTimeInterval: cli.doubleValue(for: "--seconds", default: 3))
+    let observed = peakMeter.channelPeaks
+    peakMeter.stop()
+    print(observed.map(dbString).joined(separator: "  "))
 
 case "monitor":
     guard let device = CA.device(forUID: kDeviceUID) else {

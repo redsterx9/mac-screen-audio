@@ -2,3 +2,6 @@
 .swiftpm/
 *.xcodeproj
 .DS_Store
+.demo/*.gif
+.demo/*.wav
+.demo/*.png

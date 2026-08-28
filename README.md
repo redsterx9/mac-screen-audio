@@ -63,10 +63,13 @@ defaults any time you want to confirm they have not moved.
 Yes, this captures Logic Pro, Ableton, or anything else — including when the DAW is playing
 through an audio interface and `screend` is not.
 
-The tap is **process-scoped, not device-scoped**. It follows the application, not the output
-route. Verified: a tone sent to a non-default output device was captured cleanly.
+The tap is a global process tap rather than a tap on one specific device, so it should follow
+the application rather than the output route. Treat that as expected rather than proven: the
+measurement that was meant to establish it could not distinguish a tone sent to a second output
+device from the same tone falling back to the default, so it is being redone.
 
-To confirm on your own rig, run `screend monitor`, then hit play in your DAW and watch the meter.
+Check it on your own rig in ten seconds — run `screend monitor`, hit play in your DAW, and watch
+the meter.
 
 One thing to know: the tap captures the DAW's **final output**, below the master fader. Pull the
 master down and the recording comes down with it. For a real mixdown, bounce from the DAW —
@@ -87,7 +90,8 @@ channel separation**. Output is `2 ch, 48000 Hz, Stereo (L R)`.
 | `screend status` | Show state and confirm your audio defaults are untouched |
 | `screend check` | Measure, per channel, whether audio is actually arriving |
 | `screend monitor` | Live L/R level meter |
-| `screend list` | List input devices and their UIDs |
+| `screend list` | List input and output devices with their UIDs |
+| `screend permission` | Check or request the Screen & System Audio Recording permission |
 | `screend install` / `uninstall` | Register or remove the login agent |
 | `screend version` | Print the version |
 | `screend tone` | Diagnostic test tone (`--device` `--left` `--right` `--amp`) |
@@ -124,8 +128,6 @@ Claims in this README were measured, not assumed:
   1 kHz tone still recorded at −12.2 dB, identical to the level at volume 75.
 - **Stereo separation.** Left-only tone → right channel at −240 dB (digital silence).
   L=1 kHz / R=3 kHz → each channel carries only its own tone, opposite channel below −86 dB.
-- **Other output devices are captured.** A tone sent to an output device that was neither the
-  system default nor the aggregate's clock was captured at −16.5 dB.
 - **`screencapture -G` really honours the device.** An unknown UID errors out; an interface with
   nothing plugged in records −71 dB of silence.
 - **44.1 kHz sources are not pitch-shifted.** The aggregate is clocked at 48 kHz, so a 44.1 kHz
@@ -134,6 +136,22 @@ Claims in this README were measured, not assumed:
   would have produced.
 - **Defaults unchanged** before, during and after a session.
 - Final recording: `2 ch, 48000 Hz, Stereo (L R)`, zero clipped samples.
+
+## Permission
+
+screend needs **Screen & System Audio Recording**. This is not optional and it fails quietly: a
+Core Audio tap created without that permission is still created successfully and still delivers
+audio buffers — they are simply silent, and no API reports an error.
+
+`screend status` and `screend check` both report the permission explicitly, so silence is never
+left unexplained. To grant it:
+
+```bash
+screend permission
+```
+
+macOS shows its dialog only the first time. After that, flip the switch by hand in
+System Settings → Privacy & Security → Screen & System Audio Recording, then restart screend.
 
 ## Requirements
 
