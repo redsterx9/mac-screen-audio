@@ -5,6 +5,7 @@ import ScreendCore
 let kDeviceUID = "io.github.redsterx9.screend.system-audio"
 let kDefaultDeviceName = "Screen Recording Audio"
 let kAgentLabel = "io.github.redsterx9.screend"
+let kAppDeviceUID = "io.github.redsterx9.screend.app-capture"
 
 let usage = """
 screend — record your Mac's own audio with the built-in screen recorder
@@ -19,6 +20,12 @@ screend — record your Mac's own audio with the built-in screen recorder
   screend monitor    Live L/R level meter
   screend list       List input and output devices with their UIDs
   screend permission Check or request the Screen & System Audio Recording permission
+
+  screend apps             List apps Core Audio can tap
+  screend daw --app <app> [--with <deviceUID>]
+                           Expose one app's audio as a live input device for a DAW,
+                           so you can run it through plugins in real time.
+                           --with keeps your interface's inputs in the same device.
 
   screend install [--mic]   Start automatically at login
   screend uninstall         Remove the login agent
@@ -212,9 +219,115 @@ case "permission":
               : "Still missing.\n\n\(ScreenRecordingPermission.howToFix)")
     }
 
+case "apps":
+    let processes = AudioProcess.all
+        .filter { $0.bundleID != nil }
+        .sorted { ($0.isPlaying ? 0 : 1, $0.name.lowercased()) < ($1.isPlaying ? 0 : 1, $1.name.lowercased()) }
+    print("Apps Core Audio knows about (▶ = playing right now):")
+    for process in processes {
+        print("  \(process.isPlaying ? "▶" : " ") \(process.name)")
+        print("      \(process.bundleID ?? "?")   pid \(process.pid)")
+    }
+
+case "daw":
+    // Expose one app's audio as a live input device, so a DAW can put plugins on it.
+    guard let query = cli.value(for: "--app") ?? cli.value(for: "--pid") else {
+        fail("which app? e.g. screend daw --app Spotify   (see `screend apps`)")
+    }
+    let matched = AudioProcess.matching(query)
+    guard !matched.isEmpty else {
+        fail("no audio process matches \"\(query)\" — run `screend apps` to see the list")
+    }
+    let appName = matched.first(where: { $0.isPlaying })?.name ?? matched[0].name
+    let deviceName = cli.value(for: "--name", default: "\(appName) Capture")
+
+    // --with keeps your interface's inputs in the same device, so a guitar or mic still
+    // reaches the DAW alongside the tapped app instead of being displaced by it.
+    let extraInputUID = cli.value(for: "--with")
+    let extraInputChannels = extraInputUID
+        .flatMap(CA.device(forUID:))
+        .map { CA.channelCount(of: $0, scope: kAudioObjectPropertyScopeInput) } ?? 0
+
+    _ = SystemAudioDevice.destroyLeftover(uid: kAppDeviceUID)
+
+    let dawBefore = CA.DefaultsSnapshot.capture()
+    let dawDevice = SystemAudioDevice(deviceName: deviceName, deviceUID: kAppDeviceUID)
+    do {
+        try dawDevice.create(clockDeviceUID: cli.value(for: "--clock"),
+                             microphoneUID: extraInputUID,
+                             includingProcesses: matched.map(\.objectID))
+    } catch {
+        dawDevice.destroy()
+        fail("\(error)")
+    }
+
+    let dawChannels = CA.channelCount(of: dawDevice.aggregateDeviceID,
+                                      scope: kAudioObjectPropertyScopeInput)
+    let appChannelStart = extraInputChannels + 1
+
+    print("""
+    ✅ \(deviceName)  [\(dawChannels)ch]
+       Tapping \(matched.count) process\(matched.count == 1 ? "" : "es") of \(appName), and nothing else.
+       Your DAW's own output is not in the tap, so there is no feedback loop.
+    """)
+
+    if extraInputChannels > 0, let extraInputUID {
+        let extraName = CA.device(forUID: extraInputUID).flatMap(CA.name) ?? extraInputUID
+        print("""
+          Channels 1-\(extraInputChannels)   \(extraName)
+          Channels \(appChannelStart)-\(appChannelStart + 1)   \(appName)
+        """)
+    } else {
+        print("""
+          Channels 1-2   \(appName)
+
+        ⚠️  This device has no hardware inputs, so selecting it in your DAW replaces them —
+           no guitar, no mic. To keep both, pass your interface:
+             screend daw --app \(query) --with <device UID>     (see `screend list`)
+        """)
+    }
+
+    print("""
+    In Logic Pro:
+      1. Settings → Audio → Devices → Input Device → "\(deviceName)"
+         Leave Output Device alone. Logic takes input and output from separate devices.
+      2. New stereo audio track, Input \(appChannelStart)-\(appChannelStart + 1).
+      3. Arm it (R) and turn on Input Monitoring (I).
+      4. Drop plugins on the track. They process \(appName) live.
+
+    Audio defaults (unchanged):
+    \(CA.DefaultsSnapshot.capture().description)
+    """)
+    if dawBefore != CA.DefaultsSnapshot.capture() {
+        print("\n⚠️  Your audio defaults changed. They were:\n\(dawBefore.description)")
+    }
+    if !ScreenRecordingPermission.isGranted {
+        print("""
+
+        ⚠️  Screen & System Audio Recording permission is missing — this will be silent.
+        \(ScreenRecordingPermission.howToFix)
+        """)
+    }
+    print("""
+
+    Check it is working:  screend monitor --uid \(kAppDeviceUID)
+    Ctrl-C removes the device and exits.
+    """)
+
+    signalHandlerDevice = dawDevice
+    let dawCleanup: @convention(c) (Int32) -> Void = { _ in
+        signalHandlerDevice?.destroy()
+        exit(0)
+    }
+    signal(SIGINT, dawCleanup)
+    signal(SIGTERM, dawCleanup)
+    RunLoop.main.run()
+
 case "peak":
     // Diagnostic: report the highest level seen on each channel over a fixed window.
-    guard let device = CA.device(forUID: kDeviceUID) else { fail("device is off") }
+    guard let device = CA.device(forUID: cli.value(for: "--uid", default: kDeviceUID)) else {
+        fail("device is off")
+    }
     let peakChannels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)
     let peakMeter = ChannelMeter(deviceID: device, channelCount: peakChannels)
     do { try peakMeter.start() } catch { fail("\(error)") }
@@ -226,7 +339,7 @@ case "peak":
     print(observed.map(dbString).joined(separator: "  "))
 
 case "monitor":
-    guard let device = CA.device(forUID: kDeviceUID) else {
+    guard let device = CA.device(forUID: cli.value(for: "--uid", default: kDeviceUID)) else {
         fail("device is off — run `screend on` first")
     }
     let monitorChannels = CA.channelCount(of: device, scope: kAudioObjectPropertyScopeInput)

@@ -75,6 +75,55 @@ One thing to know: the tap captures the DAW's **final output**, below the master
 master down and the recording comes down with it. For a real mixdown, bounce from the DAW —
 this is for getting reference audio into a screen recording.
 
+## Running an app's audio through your DAW
+
+Same tap, different destination. Instead of handing it to the screen recorder, hand it to Logic
+as a **live input** — then it goes through plugins in real time. Put an EQ on Spotify and sweep
+it to find what is sitting at 200 Hz. Put a filter on it and solo a frequency band to hear which
+instrument lives there.
+
+```bash
+screend apps                                    # find the app
+screend daw --app Spotify --with <your-interface-UID>
+```
+
+In Logic: Settings → Audio → Devices → **Input Device** → the device screend just made. Leave
+**Output Device** alone — Logic takes input and output from separate devices, so your monitoring
+path does not move. Make a stereo audio track on the app's channels, arm it, turn on Input
+Monitoring, and start adding plugins.
+
+### Why `--with` matters
+
+Without it, the capture device has no hardware inputs, so selecting it in Logic **replaces**
+them — no guitar, no mic. Pass `--with <interface UID>` and both live in one device: your
+interface on channels 1-N, the app after it. `screend list` prints the UIDs.
+
+### The feedback trap this avoids
+
+A global tap captures *everything the Mac plays*, which includes your DAW's own output. Feed
+that into the DAW's input and you have built an infinite feedback loop, at whatever volume your
+monitors happen to be at.
+
+So `screend daw` scopes the tap to the named app's processes only. Measured: with a tap scoped
+to one process, that process's 1 kHz tone recorded at −17.3 dB while a second process playing
+3 kHz to the same output device came through at −90.4 dB. 73 dB of separation — your DAW is not
+in the tap.
+
+It tracks helper processes too. Spotify, browsers and other Electron apps play audio from a
+helper rather than the process you would name, so screend taps the whole bundle family.
+
+### Identifying instruments
+
+Live plugins are good for sweeping and listening. For actually pulling a mix apart, record the
+app into a track first and then use Logic's **Stem Splitter** on the region — it separates
+vocals, drums, bass and other, which is a different and much stronger tool than an EQ sweep.
+Stem Splitter works on recorded regions, not on a live input, which is why the recording step
+comes first.
+
+One honest limit: the tap captures the app's final output, after its own volume. Spotify's
+volume slider changes what you capture. Leave it at 100% and set listening level at your
+interface.
+
 ## Stereo
 
 Left and right stay separate. Play 1 kHz on the left and 3 kHz on the right, record it, and each
@@ -92,6 +141,8 @@ channel separation**. Output is `2 ch, 48000 Hz, Stereo (L R)`.
 | `screend monitor` | Live L/R level meter |
 | `screend list` | List input and output devices with their UIDs |
 | `screend permission` | Check or request the Screen & System Audio Recording permission |
+| `screend apps` | List apps Core Audio can tap |
+| `screend daw --app <app>` | Expose one app's audio as a live DAW input |
 | `screend install` / `uninstall` | Register or remove the login agent |
 | `screend version` | Print the version |
 | `screend tone` | Diagnostic test tone (`--device` `--left` `--right` `--amp`) |
