@@ -41,7 +41,7 @@ final class SystemAudioDevice {
 
     func create(excludingProcesses excluded: [pid_t] = [],
                 clockDeviceUID: String? = nil,
-                microphoneUID: String? = nil,
+                extraInputUIDs: [String] = [],
                 tapDeviceUID: String? = nil,
                 includingProcesses included: [AudioObjectID]? = nil) throws {
         try createTap(excluding: excluded, tapDeviceUID: tapDeviceUID, including: included)
@@ -55,22 +55,22 @@ final class SystemAudioDevice {
         // When a microphone is mixed in it also supplies the clock. Otherwise the built-in
         // speakers do — never the audio interface, which stays out of the aggregate entirely.
         guard let clockUID = clockDeviceUID
-                ?? microphoneUID
+                ?? extraInputUIDs.first
                 ?? CA.builtInOutputDevice.flatMap(CA.uid)
                 ?? CA.defaultOutputDevice.flatMap(CA.uid) else {
             throw ScreendError.message("no output device available to clock the aggregate")
         }
         clockUID_ = clockUID
 
-        microphoneUID_ = microphoneUID
-        aggregateID = try createAggregate(clockDeviceUID: clockUID, microphoneUID: microphoneUID)
+        extraInputUIDs_ = extraInputUIDs
+        aggregateID = try createAggregate(clockDeviceUID: clockUID, extraInputUIDs: extraInputUIDs)
         guard CA.channelCount(of: aggregateID, scope: kAudioObjectPropertyScopeInput) > 0 else {
             throw ScreendError.message("virtual device was created but exposes no input channels")
         }
     }
 
     private(set) var clockUID_: String?
-    private(set) var microphoneUID_: String?
+    private(set) var extraInputUIDs_: [String] = []
 
     private func createTap(excluding excluded: [pid_t],
                            tapDeviceUID: String? = nil,
@@ -106,14 +106,14 @@ final class SystemAudioDevice {
     }
 
     private func createAggregate(clockDeviceUID clockUID: String,
-                                 microphoneUID: String?) throws -> AudioObjectID {
+                                 extraInputUIDs: [String]) throws -> AudioObjectID {
         var subDevices: [[String: Any]] = [[
             kAudioSubDeviceUIDKey: clockUID,
             kAudioSubDeviceDriftCompensationKey: 1,
         ]]
-        if let microphoneUID, microphoneUID != clockUID {
+        for uid in extraInputUIDs where uid != clockUID {
             subDevices.append([
-                kAudioSubDeviceUIDKey: microphoneUID,
+                kAudioSubDeviceUIDKey: uid,
                 kAudioSubDeviceDriftCompensationKey: 1,
             ])
         }
@@ -162,9 +162,9 @@ final class SystemAudioDevice {
         ) { [weak self] _, _ in
             guard let self, let clockUID = self.clockUID_ else { return }
             guard CA.device(forUID: clockUID) == nil else { return }
-            let mic = self.microphoneUID_
+            let extras = self.extraInputUIDs_
             self.destroy()
-            try? self.create(excludingProcesses: [getpid()], microphoneUID: mic)
+            try? self.create(excludingProcesses: [getpid()], extraInputUIDs: extras)
         }
     }
 

@@ -44,6 +44,20 @@ struct ArgumentsTests {
         #expect(Arguments(["on", "--mic", "UID"]).optional("--mic") == (true, "UID"))
     }
 
+    @Test("a repeated flag collects every value")
+    func repeatedFlag() {
+        let args = Arguments(["daw", "--with", "UID:1,2", "--with", "OTHER:3,4", "--app", "X"])
+        #expect(args.values(for: "--with") == ["UID:1,2", "OTHER:3,4"])
+        #expect(args.values(for: "--app") == ["X"])
+        #expect(args.values(for: "--missing").isEmpty)
+    }
+
+    @Test("a repeated flag skips occurrences with no value")
+    func repeatedFlagWithoutValue() {
+        let args = Arguments(["daw", "--with", "--app", "X", "--with", "UID"])
+        #expect(args.values(for: "--with") == ["UID"])
+    }
+
     @Test("numeric flags parse, and bad input falls back")
     func numericFlags() {
         let args = Arguments(["tone", "--amp", "0.5", "--seconds", "nope"])

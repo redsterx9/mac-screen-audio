@@ -18,6 +18,18 @@ public struct Arguments: Sendable {
         return next.hasPrefix("--") ? nil : next
     }
 
+    /// Every value given for a repeated flag, e.g. `--with A --with B`. Core Audio device
+    /// UIDs contain commas, so a comma separated list is not an option here.
+    public func values(for flag: String) -> [String] {
+        var found: [String] = []
+        for (index, token) in tokens.enumerated() where token == flag {
+            guard index + 1 < tokens.count else { continue }
+            let next = tokens[index + 1]
+            if !next.hasPrefix("--") { found.append(next) }
+        }
+        return found
+    }
+
     public func value(for flag: String, default fallback: String) -> String {
         value(for: flag) ?? fallback
     }

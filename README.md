@@ -98,6 +98,16 @@ Without it, the capture device has no hardware inputs, so selecting it in Logic 
 them — no guitar, no mic. Pass `--with <interface UID>` and both live in one device: your
 interface on channels 1-N, the app after it. `screend list` prints the UIDs.
 
+### `--with` takes physical interfaces, and only physical ones
+
+Repeat it per device — `--with A --with B`. Not comma separated: Core Audio device UIDs contain
+commas themselves (`...:1,2`).
+
+**An aggregate device cannot go inside another aggregate device.** Core Audio refuses it
+silently, so the aggregate you built in Audio MIDI Setup cannot be passed to `--with` — pass the
+interfaces it contains instead. screend reads the channel map back off the device it actually
+created and tells you when channels went missing, rather than printing the layout it asked for.
+
 ### The feedback trap this avoids
 
 A global tap captures *everything the Mac plays*, which includes your DAW's own output. Feed

@@ -25,7 +25,9 @@ screend — record your Mac's own audio with the built-in screen recorder
   screend daw --app <app> [--with <deviceUID>]
                            Expose one app's audio as a live input device for a DAW,
                            so you can run it through plugins in real time.
-                           --with keeps your interface's inputs in the same device.
+                           --with keeps your interface's inputs in the same device;
+                           repeat it for several. Physical devices only — Core Audio
+                           will not nest one aggregate device inside another.
 
   screend install [--mic]   Start automatically at login
   screend uninstall         Remove the login agent
@@ -165,7 +167,7 @@ case "on":
     do {
         try device.create(excludingProcesses: [getpid()],
                           clockDeviceUID: clockUID,
-                          microphoneUID: micUID,
+                          extraInputUIDs: micUID.map { [$0] } ?? [],
                           tapDeviceUID: tapDeviceUID)
     } catch {
         device.destroy()
@@ -243,10 +245,11 @@ case "daw":
 
     // --with keeps your interface's inputs in the same device, so a guitar or mic still
     // reaches the DAW alongside the tapped app instead of being displaced by it.
-    let extraInputUID = cli.value(for: "--with")
-    let extraInputChannels = extraInputUID
-        .flatMap(CA.device(forUID:))
-        .map { CA.channelCount(of: $0, scope: kAudioObjectPropertyScopeInput) } ?? 0
+    let requestedInputs = cli.values(for: "--with")
+    let expectedExtraChannels = requestedInputs.reduce(0) { total, uid in
+        total + (CA.device(forUID: uid)
+            .map { CA.channelCount(of: $0, scope: kAudioObjectPropertyScopeInput) } ?? 0)
+    }
 
     _ = SystemAudioDevice.destroyLeftover(uid: kAppDeviceUID)
 
@@ -254,16 +257,21 @@ case "daw":
     let dawDevice = SystemAudioDevice(deviceName: deviceName, deviceUID: kAppDeviceUID)
     do {
         try dawDevice.create(clockDeviceUID: cli.value(for: "--clock"),
-                             microphoneUID: extraInputUID,
+                             extraInputUIDs: requestedInputs,
                              includingProcesses: matched.map(\.objectID))
     } catch {
         dawDevice.destroy()
         fail("\(error)")
     }
 
+    // Read the channel map off the device that actually got created. Core Audio silently
+    // drops a sub-device it will not accept — an aggregate device cannot contain another
+    // aggregate device — and reporting the layout we asked for would be a lie.
     let dawChannels = CA.channelCount(of: dawDevice.aggregateDeviceID,
                                       scope: kAudioObjectPropertyScopeInput)
-    let appChannelStart = extraInputChannels + 1
+    let tapChannels = 2
+    let actualExtraChannels = max(0, dawChannels - tapChannels)
+    let appChannelStart = actualExtraChannels + 1
 
     print("""
     ✅ \(deviceName)  [\(dawChannels)ch]
@@ -271,15 +279,27 @@ case "daw":
        Your DAW's own output is not in the tap, so there is no feedback loop.
     """)
 
-    if extraInputChannels > 0, let extraInputUID {
-        let extraName = CA.device(forUID: extraInputUID).flatMap(CA.name) ?? extraInputUID
+    if actualExtraChannels > 0 {
+        let names = requestedInputs.compactMap { CA.device(forUID: $0).flatMap(CA.name) }
         print("""
-          Channels 1-\(extraInputChannels)   \(extraName)
+          Channels 1-\(actualExtraChannels)   \(names.joined(separator: " + "))
           Channels \(appChannelStart)-\(appChannelStart + 1)   \(appName)
         """)
     } else {
+        print("  Channels 1-2   \(appName)")
+    }
+
+    if actualExtraChannels < expectedExtraChannels {
         print("""
-          Channels 1-2   \(appName)
+
+        ⚠️  Asked for \(expectedExtraChannels) hardware channels but got \(actualExtraChannels).
+           Core Audio refuses to nest one aggregate device inside another, so an aggregate
+           you built in Audio MIDI Setup cannot be passed to --with. Pass the physical
+           interfaces instead, comma separated:
+             screend daw --app \(query) --with <uid1> --with <uid2>
+        """)
+    } else if requestedInputs.isEmpty {
+        print("""
 
         ⚠️  This device has no hardware inputs, so selecting it in your DAW replaces them —
            no guitar, no mic. To keep both, pass your interface:
