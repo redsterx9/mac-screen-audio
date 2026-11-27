@@ -6,6 +6,7 @@ let kDeviceUID = "io.github.redsterx9.screend.system-audio"
 let kDefaultDeviceName = "Screen Recording Audio"
 let kAgentLabel = "io.github.redsterx9.screend"
 let kAppDeviceUID = "io.github.redsterx9.screend.app-capture"
+let kDawAgentLabel = "io.github.redsterx9.screend.daw"
 
 let usage = """
 screend — record your Mac's own audio with the built-in screen recorder
@@ -22,7 +23,7 @@ screend — record your Mac's own audio with the built-in screen recorder
   screend permission Check or request the Screen & System Audio Recording permission
 
   screend apps             List apps Core Audio can tap
-  screend daw --app <app> [--with <deviceUID>]
+  screend daw --app <app> [--with <deviceUID>] [--install]
                            Expose one app's audio as a live input device for a DAW,
                            so you can run it through plugins in real time.
                            --with keeps your interface's inputs in the same device;
@@ -231,6 +232,12 @@ case "apps":
         print("      \(process.bundleID ?? "?")   pid \(process.pid)")
     }
 
+case "daw" where cli.has("--uninstall"):
+    do {
+        try LaunchAgent.uninstallCustom(label: kDawAgentLabel)
+        print("Login agent removed.")
+    } catch { fail("\(error)") }
+
 case "daw":
     // Expose one app's audio as a live input device, so a DAW can put plugins on it.
     guard let query = cli.value(for: "--app") ?? cli.value(for: "--pid") else {
@@ -333,6 +340,23 @@ case "daw":
     Check it is working:  screend monitor --uid \(kAppDeviceUID)
     Ctrl-C removes the device and exits.
     """)
+
+    if cli.has("--install") {
+        // The device only exists while this process does, so a terminal window is a bad
+        // place to keep it. Re-register this exact invocation as a login agent instead.
+        let passthrough = Array(CommandLine.arguments.dropFirst()).filter { $0 != "--install" }
+        do {
+            let path = try LaunchAgent.installCustom(label: kDawAgentLabel, arguments: passthrough)
+            print("""
+
+            ✅ Registered as a login agent: \(path)
+               "\(deviceName)" will be there every time you log in, and after a reboot.
+               Remove it with: screend daw --uninstall
+            """)
+        } catch { fail("\(error)") }
+        dawDevice.destroy()
+        exit(0)
+    }
 
     signalHandlerDevice = dawDevice
     let dawCleanup: @convention(c) (Int32) -> Void = { _ in

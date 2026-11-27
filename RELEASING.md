@@ -142,6 +142,11 @@ Done in v0.1.0/v0.1.1: the tap is live at `redsterx9/homebrew-tap`, `brew instal
 `brew services start` both verified on a clean install, and `brew audit --strict --online`
 passes.
 
+Dead end, recorded so it is not retried: a tap cannot be added to an aggregate device that
+already exists. Writing `kAudioAggregateDevicePropertyTapList` returns `noErr` and changes
+nothing — reading the list back shows it still empty, both on a user-built aggregate and on one
+screend created itself. A tap has to be part of the description the aggregate is created from.
+
 Still open:
 
 - Multi-display and external-display recording untested.

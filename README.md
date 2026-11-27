@@ -98,6 +98,21 @@ Without it, the capture device has no hardware inputs, so selecting it in Logic 
 them — no guitar, no mic. Pass `--with <interface UID>` and both live in one device: your
 interface on channels 1-N, the app after it. `screend list` prints the UIDs.
 
+### Keep it running
+
+The device exists only while `screend daw` does, so a terminal window is the wrong place for it
+— close the window and the device vanishes from your DAW mid-session. Register it instead:
+
+```bash
+screend daw --app Spotify --with <interface> --clock <interface> --install
+```
+
+That re-registers the same invocation as a login agent, so the device is there after a reboot
+and after a DAW restart. `screend daw --uninstall` removes it.
+
+Passing `--clock <interface>` as well puts your interface's **outputs** in the device too, so
+one device covers input and output and the DAW needs a single setting rather than two.
+
 ### `--with` takes physical interfaces, and only physical ones
 
 Repeat it per device — `--with A --with B`. Not comma separated: Core Audio device UIDs contain

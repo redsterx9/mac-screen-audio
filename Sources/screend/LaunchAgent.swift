@@ -34,6 +34,40 @@ enum LaunchAgent {
         return "not installed"
     }
 
+    /// Registers an arbitrary screend invocation, used by `screend daw --install` so the
+    /// capture device survives log out, Logic restarts and closing the terminal.
+    static func installCustom(label: String, arguments extra: [String]) throws -> String {
+        let executable = URL(fileURLWithPath: CommandLine.arguments[0])
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+        let plist: [String: Any] = [
+            "Label": label,
+            "ProgramArguments": [executable] + extra,
+            "RunAtLoad": true,
+            "KeepAlive": true,
+            "ProcessType": "Interactive",
+            "StandardOutPath": "/tmp/\(label).log",
+            "StandardErrorPath": "/tmp/\(label).log",
+        ]
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: url)
+        _ = try? launchctl(["bootout", "gui/\(getuid())/\(label)"])
+        try launchctl(["bootstrap", "gui/\(getuid())", url.path])
+        return url.path
+    }
+
+    static func uninstallCustom(label: String) throws {
+        _ = try? launchctl(["bootout", "gui/\(getuid())/\(label)"])
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/LaunchAgents/\(label).plist")
+        if FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.removeItem(at: url)
+        }
+    }
+
     static func install(withMicrophone mic: Bool) throws -> String {
         let executable = URL(fileURLWithPath: CommandLine.arguments[0])
             .resolvingSymlinksInPath().standardizedFileURL.path
