@@ -98,6 +98,17 @@ Without it, the capture device has no hardware inputs, so selecting it in Logic 
 them — no guitar, no mic. Pass `--with <interface UID>` and both live in one device: your
 interface on channels 1-N, the app after it. `screend list` prints the UIDs.
 
+### Interfaces that come and go
+
+Pass every interface you use, whether or not it is plugged in right now. screend watches the
+device list and rebuilds the aggregate when one appears or disappears, so an interface plugged
+in after screend started still joins.
+
+The tapped app is always the **last two channels**, because Core Audio puts sub-devices before
+taps. So the app's channel numbers move when an interface comes or goes — two interfaces
+present might put it on 7-8, one on 5-6. The line screend prints on each rebuild says where it
+landed.
+
 ### Keep it running
 
 The device exists only while `screend daw` does, so a terminal window is the wrong place for it

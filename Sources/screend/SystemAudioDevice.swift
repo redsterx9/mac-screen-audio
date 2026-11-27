@@ -63,6 +63,9 @@ final class SystemAudioDevice {
         clockUID_ = clockUID
 
         extraInputUIDs_ = extraInputUIDs
+        requestedClockUID_ = clockDeviceUID
+        includedProcesses_ = included
+        presentDevices_ = Set(([clockUID] + extraInputUIDs).filter { CA.device(forUID: $0) != nil })
         aggregateID = try createAggregate(clockDeviceUID: clockUID, extraInputUIDs: extraInputUIDs)
         guard CA.channelCount(of: aggregateID, scope: kAudioObjectPropertyScopeInput) > 0 else {
             throw ScreendError.message("virtual device was created but exposes no input channels")
@@ -71,6 +74,9 @@ final class SystemAudioDevice {
 
     private(set) var clockUID_: String?
     private(set) var extraInputUIDs_: [String] = []
+    private(set) var requestedClockUID_: String?
+    private(set) var includedProcesses_: [AudioObjectID]?
+    private(set) var presentDevices_: Set<String> = []
 
     private func createTap(excluding excluded: [pid_t],
                            tapDeviceUID: String? = nil,
@@ -153,18 +159,27 @@ final class SystemAudioDevice {
         }
     }
 
-    /// Rebuilds the aggregate if its clock device goes away — an interface being unplugged
-    /// would otherwise leave the virtual device present but dead.
-    func watchForClockDeviceRemoval() {
+    /// Rebuilds the aggregate whenever the set of devices it wants changes — an interface
+    /// being unplugged, or plugged back in. Without this, an interface that was absent when
+    /// screend started never joins the device, and one that is pulled out leaves it dead.
+    func watchForDeviceChanges() {
         var address = CA.addr(kAudioHardwarePropertyDevices)
         AudioObjectAddPropertyListenerBlock(
             AudioObjectID(kAudioObjectSystemObject), &address, DispatchQueue.main
         ) { [weak self] _, _ in
-            guard let self, let clockUID = self.clockUID_ else { return }
-            guard CA.device(forUID: clockUID) == nil else { return }
+            guard let self else { return }
+            let wanted = ([self.clockUID_].compactMap { $0 } + self.extraInputUIDs_)
+            let presentNow = Set(wanted.filter { CA.device(forUID: $0) != nil })
+            guard presentNow != self.presentDevices_ else { return }
+
+            let clock = self.requestedClockUID_
             let extras = self.extraInputUIDs_
+            let processes = self.includedProcesses_
             self.destroy()
-            try? self.create(excludingProcesses: [getpid()], extraInputUIDs: extras)
+            try? self.create(excludingProcesses: [getpid()],
+                             clockDeviceUID: clock,
+                             extraInputUIDs: extras,
+                             includingProcesses: processes)
         }
     }
 

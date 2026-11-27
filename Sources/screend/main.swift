@@ -208,7 +208,7 @@ case "on":
     }
     signal(SIGINT, cleanup)
     signal(SIGTERM, cleanup)
-    device.watchForClockDeviceRemoval()
+    device.watchForDeviceChanges()
     RunLoop.main.run()
 
 case "permission":
@@ -359,6 +359,7 @@ case "daw":
     }
 
     signalHandlerDevice = dawDevice
+    dawDevice.watchForDeviceChanges()
     let dawCleanup: @convention(c) (Int32) -> Void = { _ in
         signalHandlerDevice?.destroy()
         exit(0)
